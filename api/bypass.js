@@ -93,17 +93,26 @@ module.exports = async (req, res) => {
 
   const voltarBase = 'http://77.110.121.76:3000';
 
+  const incomingUserId =
+    (req.headers['x-user-id'] ||
+     req.headers['x_user_id'] ||
+     req.body?.x_user_id ||
+     req.body?.['x-user-id'] ||
+     '') + '';
+
   const tryVoltar = async () => {
     const start = getCurrentTime();
     try {
-      const createRes = await axios.post(`${voltarBase}/bypass/createTask`, { url, cache: true });
+      const payload = { url, cache: true };
+      if (incomingUserId) payload.x_user_id = incomingUserId;
+      const createRes = await axios.post(`${voltarBase}/bypass/createTask`, payload);
       if (createRes.data?.status !== 'success' || !createRes.data?.taskId) return { success: false };
       const taskId = createRes.data.taskId;
       for (let i = 0; i < 140; i++) {
         await new Promise(r => setTimeout(r, 1000));
         const resultRes = await axios.get(`${voltarBase}/bypass/getTaskResult/${taskId}`);
         if (resultRes.data?.status === 'success' && resultRes.data?.result) {
-          res.json({ status: 'success', result: resultRes.data.result, time_taken: formatDuration(start) });
+          res.json({ status: 'success', result: resultRes.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
           return { success: true };
         }
       }
@@ -120,7 +129,7 @@ module.exports = async (req, res) => {
         headers: { 'x-api-key': ABYSM_API_KEY, 'accept': 'application/json' }
       });
       if (r.data?.status === 'success' && r.data?.result) {
-        res.json({ status: 'success', result: r.data.result, time_taken: formatDuration(start) });
+        res.json({ status: 'success', result: r.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
       return { success: false };
@@ -132,13 +141,13 @@ module.exports = async (req, res) => {
   if (isVoltarOnly) {
     const r = await tryVoltar();
     if (r.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', time_taken: formatDuration(handlerStart) });
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
 
   if (isAbysmOnly) {
     const r = await tryAbysm();
     if (r.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', time_taken: formatDuration(handlerStart) });
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
 
   const voltarResult = await tryVoltar();
@@ -147,5 +156,5 @@ module.exports = async (req, res) => {
   const abysmResult = await tryAbysm();
   if (abysmResult.success) return;
 
-  return res.json({ status: 'error', result: 'Bypass Failed :(', time_taken: formatDuration(handlerStart) });
+  return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
