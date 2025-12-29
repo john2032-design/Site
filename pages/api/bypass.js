@@ -1,7 +1,8 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 
-const API_PROXY = 'vortix-world.lopexbrad.workers.dev/api/proxy?url='
+const API_PROXY =
+  'https://vortix-world.lopexbrad.workers.dev/?key=h135355N-9FQeZKpL2A8YwXrD&url='
 const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY
 
 export default function UserscriptPage() {
