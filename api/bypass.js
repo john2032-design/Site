@@ -1,4 +1,4 @@
-const getCurrentTime = () => process.hrtime.bigint();
+cons getCurrentTime = () => process.hrtime.bigint();
 const formatDuration = (startNs, endNs = process.hrtime.bigint()) => {
   const durationNs = Number(endNs - startNs);
   const durationSec = durationNs / 1000000000;
