@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
   }
 
   const voltarOnly = ['pandadevelopment.net','auth.plato','work.ink','link4m.com','keyrblx.com','link4sub.com','linkify.ru','sub4unlock.io','sub2unlock','sub2get.com','sub2unlock.net'];
-  const abysmOnly = ['rentry.org','paster.so','loot-link.com','loot-links.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','linksloot.net'];
+  const abysmOnly = ['linkvertise.com','auth.platorelay.com','loot-link.com','loot-links.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','linksloot.net'];
 
   const isVoltarOnly = voltarOnly.some(d => hostname === d || hostname.endsWith('.' + d));
   const isAbysmOnly = abysmOnly.some(d => hostname === d || hostname.endsWith('.' + d));
