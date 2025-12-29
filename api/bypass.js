@@ -1,11 +1,10 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 
-const VOLTAR_PROXY = '/api/proxy?url='
-const ABYSM_PROXY = '/api/abysm?url='
+const API_PROXY = '/api/proxy?url='
 const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY
-const VOLTAR_API_KEY = process.env.NEXT_PUBLIC_VOLTAR_API_KEY
-const ABYSM_API_KEY = process.env.NEXT_PUBLIC_ABYSM_API_KEY
+const ABYSM_KEY = process.env.NEXT_PUBLIC_ABYSM_API_KEY
+const VOLTAR_KEY = process.env.NEXT_PUBLIC_VOLTAR_API_KEY
 
 export default function UserscriptPage() {
   const router = useRouter()
@@ -13,7 +12,6 @@ export default function UserscriptPage() {
   const [message, setMessage] = useState('Preparing bypass…')
   const [error, setError] = useState('')
   const [needsCaptcha, setNeedsCaptcha] = useState(false)
-  const [currentProvider, setCurrentProvider] = useState('voltar')
 
   useEffect(() => {
     if (!router.isReady) return
@@ -24,7 +22,7 @@ export default function UserscriptPage() {
       setError('Missing url parameter')
       return
     }
-    attemptResolve(target, '', 'voltar')
+    attemptResolve(target, '')
   }, [router.isReady])
 
   function loadHCaptcha() {
@@ -36,38 +34,29 @@ export default function UserscriptPage() {
     document.head.appendChild(s)
   }
 
-  function renderHCaptcha(target, provider) {
+  function renderHCaptcha(target) {
     if (!window.hcaptcha) return
     window.hcaptcha.render('hcaptcha-box', {
       sitekey: HCAPTCHA_SITEKEY,
-      callback: (token) => attemptResolve(target, token, provider)
+      callback: token => attemptResolve(target, token)
     })
   }
 
-  function getProxyUrl(provider) {
-    return provider === 'abysm' ? ABYSM_PROXY : VOLTAR_PROXY
-  }
-
-  function getApiKey(provider) {
-    return provider === 'abysm' ? ABYSM_API_KEY : VOLTAR_API_KEY
-  }
-
-  function attemptResolve(target, token, provider) {
-    setCurrentProvider(provider)
+  function attemptResolve(target, token) {
     setStatus('loading')
-    setMessage(provider === 'abysm' ? 'Resolving via Abysm…' : 'Resolving via Voltar…')
+    setMessage('Resolving link…')
     setError('')
-    setNeedsCaptcha(false)
 
-    const headers = {
-      Accept: 'application/json',
-      'x-api-key': getApiKey(provider)
-    }
+    const headers = { Accept: 'application/json' }
+
     if (token) headers['x-hcaptcha-token'] = token
 
-    const proxyUrl = getProxyUrl(provider) + encodeURIComponent(target)
+    const lower = target.toLowerCase()
 
-    fetch(proxyUrl, {
+    if (lower.includes('abysm')) headers['x-api-key'] = ABYSM_KEY
+    if (lower.includes('voltar')) headers['x-api-key'] = VOLTAR_KEY
+
+    fetch(API_PROXY + encodeURIComponent(target), {
       method: 'GET',
       headers,
       credentials: 'include'
@@ -75,75 +64,35 @@ export default function UserscriptPage() {
       .then(r => r.json().catch(() => null))
       .then(json => {
         if (!json) {
-          handleProviderError(provider, target, token)
+          setStatus('error')
+          setError('Invalid response')
           return
         }
 
-        let resultUrl = null
-
-        if (json.status === 'success') {
-          if (provider === 'abysm') {
-            if (json.data && json.data.result) {
-              resultUrl = json.data.result
-            }
-          } else {
-            if (json.result) {
-              resultUrl = json.result
-            }
-          }
-        }
-
-        if (resultUrl) {
+        if (json.status === 'success' && json.result) {
           setMessage('Redirecting…')
           setTimeout(() => {
-            window.location.href = resultUrl
+            window.location.href = json.result
           }, 400)
           return
         }
 
-        if (provider === 'abysm' && json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
+        if (json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
           setNeedsCaptcha(true)
           setStatus('captcha')
           setMessage('Complete captcha to continue')
           loadHCaptcha()
-          setTimeout(() => renderHCaptcha(target, provider), 300)
+          setTimeout(() => renderHCaptcha(target), 300)
           return
         }
 
-        if (provider === 'voltar' && json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
-          setNeedsCaptcha(true)
-          setStatus('captcha')
-          setMessage('Complete captcha to continue')
-          loadHCaptcha()
-          setTimeout(() => renderHCaptcha(target, provider), 300)
-          return
-        }
-
-        handleProviderError(provider, target, token, json)
+        setStatus('error')
+        setError(String(json.result || 'Unable to resolve'))
       })
       .catch(() => {
-        handleProviderError(provider, target, token)
+        setStatus('error')
+        setError('Network error')
       })
-  }
-
-  function handleProviderError(provider, target, token, json = null) {
-    const isVoltar = provider === 'voltar'
-    const isLinkvertise = target.includes('linkvertise.com')
-
-    const voltarFailed = isVoltar
-    const shouldFallbackToAbysm = voltarFailed && isLinkvertise
-
-    if (shouldFallbackToAbysm) {
-      attemptResolve(target, token, 'abysm')
-      return
-    }
-
-    setStatus('error')
-    if (json && json.result) {
-      setError(String(json.result))
-    } else {
-      setError('Unable to resolve link')
-    }
   }
 
   return (
