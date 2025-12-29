@@ -1,160 +1,239 @@
-const getCurrentTime = () => process.hrtime.bigint();
-const formatDuration = (startNs, endNs = process.hrtime.bigint()) => {
-  const durationNs = Number(endNs - startNs);
-  const durationSec = durationNs / 1000000000;
-  return `${durationSec.toFixed(2)}s`;
-};
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
 
-const ALLOWED_ORIGIN = 'https://vortix-world-bypass.vercel.app';
-const SITE_SECRET = process.env.SITE_SECRET || '';
-const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
-const ABYSM_API_KEY = process.env.ABYSM_API_KEY || '';
+const VOLTAR_PROXY = '/api/proxy?url='
+const ABYSM_PROXY = '/api/abysm?url='
+const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY
+const VOLTAR_API_KEY = process.env.NEXT_PUBLIC_VOLTAR_API_KEY
+const ABYSM_API_KEY = process.env.NEXT_PUBLIC_ABYSM_API_KEY
 
-module.exports = async (req, res) => {
-  const handlerStart = getCurrentTime();
+export default function UserscriptPage() {
+  const router = useRouter()
+  const [status, setStatus] = useState('init')
+  const [message, setMessage] = useState('Preparing bypass…')
+  const [error, setError] = useState('')
+  const [needsCaptcha, setNeedsCaptcha] = useState(false)
+  const [currentProvider, setCurrentProvider] = useState('voltar')
 
-  const origin = (req.headers.origin || '').toString();
-  const referer = (req.headers.referer || '').toString();
-  const siteToken = (req.headers['x-site-token'] || '').toString();
-
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-user-id,x-site-token,x-hcaptcha-token,Origin,Referer');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
-  if (!SITE_SECRET) {
-    return res.status(500).json({ status: 'error', result: 'SITE_SECRET not configured', time_taken: formatDuration(handlerStart) });
-  }
-
-  if (!HCAPTCHA_SECRET) {
-    return res.status(500).json({ status: 'error', result: 'HCAPTCHA_SECRET not configured', time_taken: formatDuration(handlerStart) });
-  }
-
-  if (!ABYSM_API_KEY) {
-    return res.status(500).json({ status: 'error', result: 'ABYSM_API_KEY not configured', time_taken: formatDuration(handlerStart) });
-  }
-
-  if (origin !== ALLOWED_ORIGIN || !referer.startsWith(ALLOWED_ORIGIN) || siteToken !== SITE_SECRET) {
-    return res.status(403).json({ status: 'error', result: 'Unauthorized', time_taken: formatDuration(handlerStart) });
-  }
-
-  if (!['GET', 'POST'].includes(req.method)) {
-    return res.status(405).json({ status: 'error', result: 'Method not allowed', time_taken: formatDuration(handlerStart) });
-  }
-
-  const url = req.method === 'GET' ? req.query.url : req.body?.url;
-
-  if (!url || typeof url !== 'string') {
-    return res.status(400).json({ status: 'error', result: 'Missing url parameter', time_taken: formatDuration(handlerStart) });
-  }
-
-  const incomingHcaptcha = (req.headers['x-hcaptcha-token'] || req.body?.hcaptcha_token || '').toString();
-
-  if (!incomingHcaptcha) {
-    return res.status(400).json({ status: 'error', result: 'Missing hcaptcha token', time_taken: formatDuration(handlerStart) });
-  }
-
-  let axios;
-  try { axios = require('axios'); } catch {
-    return res.status(500).json({ status: 'error', result: 'axios missing', time_taken: formatDuration(handlerStart) });
-  }
-
-  try {
-    const params = new URLSearchParams();
-    params.append('secret', HCAPTCHA_SECRET);
-    params.append('response', incomingHcaptcha);
-    const verify = await axios.post('https://hcaptcha.com/siteverify', params.toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    if (!verify.data?.success) {
-      return res.status(403).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
+  useEffect(() => {
+    if (!router.isReady) return
+    const params = new URLSearchParams(window.location.search)
+    const target = params.get('url')
+    if (!target) {
+      setStatus('error')
+      setError('Missing url parameter')
+      return
     }
-  } catch {
-    return res.status(502).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
+    attemptResolve(target, '', 'voltar')
+  }, [router.isReady])
+
+  function loadHCaptcha() {
+    if (window.hcaptcha) return
+    const s = document.createElement('script')
+    s.src = 'https://js.hcaptcha.com/1/api.js?render=explicit'
+    s.async = true
+    s.defer = true
+    document.head.appendChild(s)
   }
 
-  let hostname = '';
-  try {
-    hostname = new URL(url).hostname.toLowerCase();
-  } catch {
-    const m = url.match(/https?:\/\/([^\/?#]+)/i);
-    hostname = m ? m[1].toLowerCase() : '';
+  function renderHCaptcha(target, provider) {
+    if (!window.hcaptcha) return
+    window.hcaptcha.render('hcaptcha-box', {
+      sitekey: HCAPTCHA_SITEKEY,
+      callback: (token) => attemptResolve(target, token, provider)
+    })
   }
 
-  if (!hostname) {
-    return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
+  function getProxyUrl(provider) {
+    return provider === 'abysm' ? ABYSM_PROXY : VOLTAR_PROXY
   }
 
-  const voltarOnly = ['pandadevelopment.net','auth.plato','work.ink','link4m.com','keyrblx.com','link4sub.com','linkify.ru','sub4unlock.io','sub2unlock','sub2get.com','sub2unlock.net'];
-  const abysmOnly = ['linkvertise.com','auth.platorelay.com','loot-link.com','loot-links.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','linksloot.net'];
+  function getApiKey(provider) {
+    return provider === 'abysm' ? ABYSM_API_KEY : VOLTAR_API_KEY
+  }
 
-  const isVoltarOnly = voltarOnly.some(d => hostname === d || hostname.endsWith('.' + d));
-  const isAbysmOnly = abysmOnly.some(d => hostname === d || hostname.endsWith('.' + d));
+  function attemptResolve(target, token, provider) {
+    setCurrentProvider(provider)
+    setStatus('loading')
+    setMessage(provider === 'abysm' ? 'Resolving via Abysm…' : 'Resolving via Voltar…')
+    setError('')
+    setNeedsCaptcha(false)
 
-  const voltarBase = 'http://77.110.121.76:3000';
+    const headers = {
+      Accept: 'application/json',
+      'x-api-key': getApiKey(provider)
+    }
+    if (token) headers['x-hcaptcha-token'] = token
 
-  const incomingUserId =
-    (req.headers['x-user-id'] ||
-     req.headers['x_user_id'] ||
-     req.body?.x_user_id ||
-     req.body?.['x-user-id'] ||
-     '') + '';
+    const proxyUrl = getProxyUrl(provider) + encodeURIComponent(target)
 
-  const tryVoltar = async () => {
-    const start = getCurrentTime();
-    try {
-      const payload = { url, cache: true };
-      if (incomingUserId) payload.x_user_id = incomingUserId;
-      const createRes = await axios.post(`${voltarBase}/bypass/createTask`, payload);
-      if (createRes.data?.status !== 'success' || !createRes.data?.taskId) return { success: false };
-      const taskId = createRes.data.taskId;
-      for (let i = 0; i < 140; i++) {
-        await new Promise(r => setTimeout(r, 1000));
-        const resultRes = await axios.get(`${voltarBase}/bypass/getTaskResult/${taskId}`);
-        if (resultRes.data?.status === 'success' && resultRes.data?.result) {
-          res.json({ status: 'success', result: resultRes.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-          return { success: true };
+    fetch(proxyUrl, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    })
+      .then(r => r.json().catch(() => null))
+      .then(json => {
+        if (!json) {
+          handleProviderError(provider, target, token)
+          return
         }
-      }
-      return { success: false };
-    } catch {
-      return { success: false };
-    }
-  };
 
-  const tryAbysm = async () => {
-    const start = getCurrentTime();
-    try {
-      const r = await axios.get(`https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`, {
-        headers: { 'x-api-key': ABYSM_API_KEY, 'accept': 'application/json' }
-      });
-      if (r.data?.status === 'success' && r.data?.result) {
-        res.json({ status: 'success', result: r.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-        return { success: true };
-      }
-      return { success: false };
-    } catch {
-      return { success: false };
-    }
-  };
+        let resultUrl = null
 
-  if (isVoltarOnly) {
-    const r = await tryVoltar();
-    if (r.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+        if (json.status === 'success') {
+          if (provider === 'abysm') {
+            if (json.data && json.data.result) {
+              resultUrl = json.data.result
+            }
+          } else {
+            if (json.result) {
+              resultUrl = json.result
+            }
+          }
+        }
+
+        if (resultUrl) {
+          setMessage('Redirecting…')
+          setTimeout(() => {
+            window.location.href = resultUrl
+          }, 400)
+          return
+        }
+
+        if (provider === 'abysm' && json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
+          setNeedsCaptcha(true)
+          setStatus('captcha')
+          setMessage('Complete captcha to continue')
+          loadHCaptcha()
+          setTimeout(() => renderHCaptcha(target, provider), 300)
+          return
+        }
+
+        if (provider === 'voltar' && json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
+          setNeedsCaptcha(true)
+          setStatus('captcha')
+          setMessage('Complete captcha to continue')
+          loadHCaptcha()
+          setTimeout(() => renderHCaptcha(target, provider), 300)
+          return
+        }
+
+        handleProviderError(provider, target, token, json)
+      })
+      .catch(() => {
+        handleProviderError(provider, target, token)
+      })
   }
 
-  if (isAbysmOnly) {
-    const r = await tryAbysm();
-    if (r.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  function handleProviderError(provider, target, token, json = null) {
+    const isVoltar = provider === 'voltar'
+    const isLinkvertise = target.includes('linkvertise.com')
+
+    const voltarFailed = isVoltar
+    const shouldFallbackToAbysm = voltarFailed && isLinkvertise
+
+    if (shouldFallbackToAbysm) {
+      attemptResolve(target, token, 'abysm')
+      return
+    }
+
+    setStatus('error')
+    if (json && json.result) {
+      setError(String(json.result))
+    } else {
+      setError('Unable to resolve link')
+    }
   }
 
-  const voltarResult = await tryVoltar();
-  if (voltarResult.success) return;
+  return (
+    <main className="us-root">
+      <div className="us-center">
+        <div className="us-logo">★</div>
+        <h1 className="us-title">VortixWorld</h1>
+        <p className="us-msg">{message}</p>
 
-  const abysmResult = await tryAbysm();
-  if (abysmResult.success) return;
+        {status === 'loading' && <div className="us-spinner" />}
 
-  return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-};
+        {status === 'captcha' && (
+          <div className="us-captcha">
+            <div id="hcaptcha-box" />
+          </div>
+        )}
+
+        {status === 'error' && <div className="us-error">{error}</div>}
+      </div>
+
+      <style>{`
+        html,body,#__next{
+          height:100%;
+          margin:0;
+        }
+        .us-root{
+          min-height:100vh;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:24px;
+          background:linear-gradient(135deg,#060414,#1b1f5a,#4b52ff);
+          font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial;
+          color:#fff;
+          text-align:center;
+        }
+        .us-center{
+          max-width:420px;
+          width:100%;
+        }
+        .us-logo{
+          width:80px;
+          height:80px;
+          margin:0 auto 16px;
+          border-radius:22px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-size:36px;
+          background:linear-gradient(135deg,#5b5cff,#8b8fff);
+          box-shadow:0 10px 40px rgba(91,92,255,.55);
+        }
+        .us-title{
+          margin:0;
+          font-size:24px;
+          font-weight:800;
+          letter-spacing:.4px;
+        }
+        .us-msg{
+          margin:12px 0 26px;
+          font-size:15px;
+          opacity:.9;
+        }
+        .us-spinner{
+          width:54px;
+          height:54px;
+          margin:24px auto 0;
+          border-radius:50%;
+          border:5px solid rgba(255,255,255,.2);
+          border-top-color:#fff;
+          animation:spin .9s linear infinite;
+        }
+        .us-captcha{
+          display:flex;
+          justify-content:center;
+          margin-top:10px;
+        }
+        .us-error{
+          margin-top:18px;
+          color:#ff6b7f;
+          font-weight:700;
+          font-size:14px;
+        }
+        @keyframes spin{
+          to{transform:rotate(360deg)}
+        }
+        @media (max-width:420px){
+          .us-title{font-size:22px}
+        }
+      `}</style>
+    </main>
+  )
+}
