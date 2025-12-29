@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react'
 
 const API_PROXY = '/api/proxy?url='
 const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY
-const ABYSM_KEY = process.env.NEXT_PUBLIC_ABYSM_API_KEY
-const VOLTAR_KEY = process.env.NEXT_PUBLIC_VOLTAR_API_KEY
 
 export default function UserscriptPage() {
   const router = useRouter()
@@ -38,7 +36,7 @@ export default function UserscriptPage() {
     if (!window.hcaptcha) return
     window.hcaptcha.render('hcaptcha-box', {
       sitekey: HCAPTCHA_SITEKEY,
-      callback: token => attemptResolve(target, token)
+      callback: (token) => attemptResolve(target, token)
     })
   }
 
@@ -46,16 +44,8 @@ export default function UserscriptPage() {
     setStatus('loading')
     setMessage('Resolving link…')
     setError('')
-
     const headers = { Accept: 'application/json' }
-
     if (token) headers['x-hcaptcha-token'] = token
-
-    const lower = target.toLowerCase()
-
-    if (lower.includes('abysm')) headers['x-api-key'] = ABYSM_KEY
-    if (lower.includes('voltar')) headers['x-api-key'] = VOLTAR_KEY
-
     fetch(API_PROXY + encodeURIComponent(target), {
       method: 'GET',
       headers,
@@ -68,7 +58,6 @@ export default function UserscriptPage() {
           setError('Invalid response')
           return
         }
-
         if (json.status === 'success' && json.result) {
           setMessage('Redirecting…')
           setTimeout(() => {
@@ -76,7 +65,6 @@ export default function UserscriptPage() {
           }, 400)
           return
         }
-
         if (json.result && String(json.result).toLowerCase().includes('hcaptcha')) {
           setNeedsCaptcha(true)
           setStatus('captcha')
@@ -85,7 +73,6 @@ export default function UserscriptPage() {
           setTimeout(() => renderHCaptcha(target), 300)
           return
         }
-
         setStatus('error')
         setError(String(json.result || 'Unable to resolve'))
       })
