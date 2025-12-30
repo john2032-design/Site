@@ -121,16 +121,24 @@ module.exports = async (req, res) => {
       const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' } });
       const d = r.data || {};
       if (d.status === 'success') {
-        const link = d.data && (typeof d.data === 'object') ? d.data.result ?? d.data.link ?? d.data.url ?? d.data.destination : d.data;
-        if (typeof link === 'string' && link.length > 0) {
-          res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-          return { success: true };
-        } else {
-          const alt = d.data && typeof d.data === 'object' ? (d.data.result ?? d.data.link ?? d.data.url ?? d.data.destination) : undefined;
-          const finalLink = typeof alt === 'string' ? alt : String(alt === undefined ? '' : alt);
-          res.json({ status: 'success', result: finalLink, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-          return { success: true };
+        let link = '';
+        if (d.data && typeof d.data === 'object') {
+          if (typeof d.data.result === 'string' && d.data.result.length) link = d.data.result;
+          else if (typeof d.data.link === 'string' && d.data.link.length) link = d.data.link;
+          else if (typeof d.data.url === 'string' && d.data.url.length) link = d.data.url;
+          else if (typeof d.data.destination === 'string' && d.data.destination.length) link = d.data.destination;
+          else if (typeof d.data.result === 'string') link = d.data.result;
+        } else if (typeof d.data === 'string') {
+          link = d.data;
         }
+        if (!link && typeof d.result === 'string') link = d.result;
+        if (!link && typeof d.link === 'string') link = d.link;
+        if (!link && typeof d.url === 'string') link = d.url;
+        if (!link && d.data && typeof d.data === 'object') {
+          try { link = JSON.stringify(d.data); } catch { link = '';}
+        }
+        res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+        return { success: true };
       }
       if (d.status === 'fail') {
         return { success: false, fail: true };
