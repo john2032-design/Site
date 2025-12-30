@@ -82,7 +82,7 @@ module.exports = async (req, res) => {
     'x-api-key': '3f9c1e10-7f3e-4a67-939b-b42c18e4d7aa',
     'Content-Type': 'application/json'
   };
-  const ABYSM_KEY = 'ABYSM-B396598E-5F67-48D3-9D65-12291D03741';
+  const ABYSM_KEY = 'ABYSM-B396598E-5F67-48D3-9D65-12291D03741E';
   const tryVoltar = async () => {
     const start = getCurrentTime();
     try {
@@ -118,44 +118,24 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
-      const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AFK.lol-Discord-Bot/1.0',
-        'Accept': 'application/json, text/plain, */*'
-      };
-      if (ABYSM_KEY) headers['x-api-key'] = ABYSM_KEY;
-      if (incomingUserId) headers['x-user-id'] = String(incomingUserId);
-      const r = await axios.get(abysmUrl, { headers, responseType: 'text', maxRedirects: 5 });
-      const text = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      let parsed;
-      try { parsed = text ? JSON.parse(text) : {}; } catch (e) { parsed = { error: { message: text }, status: 'fail' }; }
-      const data = {};
-      if (parsed && String(parsed.status).toLowerCase() === 'success' && parsed.data) {
-        data.status = 'success';
-        data.result = parsed.data.result || parsed.data.url || parsed.data.link || JSON.stringify(parsed.data);
-        data.time_taken = parsed.data.time || parsed.data.time_taken || '';
-      } else {
-        data.status = parsed.status || 'fail';
-        data.result = parsed.error?.message || parsed.message || parsed || '';
-      }
-      if (String(data.status).toLowerCase() === 'success') {
-        const link = typeof data.result === 'string' ? data.result : String(data.result || '');
-        const timeTaken = data.time_taken || formatDuration(start);
-        res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: timeTaken });
+      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' } });
+      const d = r.data || {};
+      if (d.status === 'success') {
+        const link = d.data && typeof d.data === 'object' && typeof d.data.result === 'string' ? d.data.result : '';
+        res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
-      const msg = (parsed && (parsed.message || parsed.error || parsed.result)) || '';
+      if (d.status === 'fail') {
+        return { success: false, fail: true };
+      }
+      const msg = d?.message || d?.error || d?.result || '';
       if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
-      }
-      if (parsed && String(parsed.status).toLowerCase() === 'fail') {
-        return { success: false, fail: true };
       }
       return { success: false };
     } catch (e) {
       if (e.response?.data) {
-        const ddText = typeof e.response.data === 'string' ? e.response.data : JSON.stringify(e.response.data);
-        let dd;
-        try { dd = ddText ? JSON.parse(ddText) : {}; } catch { dd = { error: { message: ddText }, status: 'fail' }; }
+        const dd = e.response.data;
         if (dd?.status === 'fail') return { success: false, fail: true };
         const msg = dd?.message || dd?.error || dd?.result || '';
         if (/unsupported|not supported|missing_url/i.test(String(msg))) {
