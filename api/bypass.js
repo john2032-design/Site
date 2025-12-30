@@ -120,8 +120,16 @@ module.exports = async (req, res) => {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
       const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' } });
       const d = r.data || {};
-      if (d.status === 'success' && d.data && (d.data.result || d.data.result === '')) {
-        const link = d.data.result;
+      if (d.status === 'success') {
+        let link = undefined;
+        if (d.data && typeof d.data === 'object') {
+          link = d.data.result ?? d.data.link ?? d.data.url ?? d.data.destination ?? d.data.result;
+        }
+        if (link === undefined) {
+          link = d.result ?? d.link ?? d.url ?? (d.data && typeof d.data === 'string' ? d.data : undefined);
+        }
+        if (typeof link === 'object') link = link.result ?? link.url ?? link.link ?? JSON.stringify(link);
+        link = typeof link === 'string' ? link : String(link === undefined ? '' : link);
         res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
