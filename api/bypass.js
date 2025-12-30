@@ -67,45 +67,22 @@ module.exports = async (req, res) => {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
   const voltarOnly = ['pandadevelopment.net','auth.plato','work.ink','link4m.com','keyrblx.com','link4sub.com','linkify.ru','sub4unlock.io','sub2unlock','sub2get.com','sub2unlock.net'];
-  const easOnly = ['rentry.org','paster.so','loot-link.com','loot-links.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','linksloot.net'];
+  const abysmOnly = ['rentry.org','paster.so','loot-link.com','loot-links.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','linksloot.net'];
   const isVoltarOnly = voltarOnly.some(d => hostname === d || hostname.endsWith('.' + d));
-  const isEasOnly = easOnly.some(d => hostname === d || hostname.endsWith('.' + d));
+  const isAbysmOnly = abysmOnly.some(d => hostname === d || hostname.endsWith('.' + d));
   const voltarBase = 'http://77.110.121.76:3000';
   let incomingUserId = '';
-  if (isVoltarOnly || hostname === 'work.ink' || hostname.endsWith('.work.ink')) {
-    if (req.method === 'POST') {
-      incomingUserId = (req.body && (req.body['x_user_id'] || req.body['x-user-id'] || req.body.xUserId)) || '';
-      if (!incomingUserId) {
-        return res.status(400).json({ status: 'error', result: 'Missing x_user_id in POST body for Voltar', time_taken: formatDuration(handlerStart) });
-      }
-    } else {
-      incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
-      if (!incomingUserId) {
-        return res.status(400).json({ status: 'error', result: 'Missing x-user-id header for Voltar', time_taken: formatDuration(handlerStart) });
-      }
-    }
+  if (req.method === 'POST') {
+    incomingUserId = (req.body && (req.body['x_user_id'] || req.body['x-user-id'] || req.body.xUserId)) || '';
   } else {
-    if (req.method === 'POST') {
-      incomingUserId = (req.body && (req.body['x_user_id'] || req.body['x-user-id'] || req.body.xUserId)) || '';
-    } else {
-      incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
-    }
+    incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
   }
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
     'x-api-key': '3f9c1e10-7f3e-4a67-939b-b42c18e4d7aa',
     'Content-Type': 'application/json'
   };
-  const easConfig = {
-    method: 'POST',
-    url: 'https://api.eas-x.com/v3/bypass',
-    headers: {
-      'accept': 'application/json',
-      'eas-api-key': process.env.EASX_API_KEY || '.john2032-3253f-3262k-3631f-2626j-9078k',
-      'Content-Type': 'application/json'
-    },
-    data: { url }
-  };
+  const ABYSM_KEY = 'ABYSM-B396598E-5F67-48D3-9D65-12291D03741';
   const tryVoltar = async () => {
     const start = getCurrentTime();
     try {
@@ -137,17 +114,19 @@ module.exports = async (req, res) => {
       return { success: false };
     }
   };
-  const tryEas = async () => {
+  const tryAbysm = async () => {
     const start = getCurrentTime();
     try {
-      const r = await axios(easConfig);
-      const d = r.data;
-      const link = d?.result || d?.destination || d?.url || d?.link || d?.data;
-      if (link) {
+      const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
+      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' } });
+      const d = r.data || {};
+      if (d.status === 'success' && d.data && (d.data.result || d.data.result === '')) {
+        const link = d.data.result;
         res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
-      if (/unsupported|not supported|missing_url/i.test(String(d?.message || d?.error || d?.result || ''))) {
+      const msg = d?.message || d?.error || d?.result || '';
+      if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
       return { success: false };
@@ -398,19 +377,21 @@ module.exports = async (req, res) => {
     if (r === true) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
-  if (isVoltarOnly || hostname === 'work.ink' || hostname.endsWith('.work.ink')) {
+  if (isVoltarOnly || hostname === 'work.ink' || hostname.endsWith('.work.ink') || isAbysmOnly) {
+    const abysmResult = await tryAbysm();
+    if (abysmResult.success) return;
+    if (abysmResult.unsupported && (isVoltarOnly || hostname === 'work.ink' || hostname.endsWith('.work.ink'))) {
+      const voltarResult = await tryVoltar();
+      if (voltarResult.success) return;
+      return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    }
     const voltarResult = await tryVoltar();
     if (voltarResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
-  if (isEasOnly) {
-    const easResult = await tryEas();
-    if (easResult.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-  }
+  const abysmResult = await tryAbysm();
+  if (abysmResult.success) return;
   const voltarResult = await tryVoltar();
   if (voltarResult.success) return;
-  const easResult = await tryEas();
-  if (easResult.success) return;
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
