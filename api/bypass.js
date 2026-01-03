@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
   const voltarOnlyExclusive = ['work.ink','pandadevelopment.net','keyrblx.com'];
-  const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','best-links.org','lootlinks.com','loot-labs.com','lootlabs.com'];
+  const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','linkvertise.com','lootlinks.com','loot-labs.com','lootlabs.com'];
   const isVoltarOnly = voltarOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const voltarBase = 'http://77.110.121.76:3000';
