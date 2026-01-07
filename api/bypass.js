@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
   if (!hostname) {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
-  const voltarOnlyExclusive = ['work.ink','pandadevelopment.net','keyrblx.com'];
+  const voltarOnlyExclusive = ['work.ink','pandadevelopment.net','keyrblx.com','airflowscript.com','blox-script.com','neoxsoftworks.eu'];
   const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','linkvertise.com','lootlinks.com','loot-labs.com','lootlabs.com','mboost.me'];
   const isVoltarOnly = voltarOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
