@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
   const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','linkvertise.com','lootlinks.com','loot-labs.com','lootlabs.com'];
   const isVoltarOnly = voltarOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
-  const voltarBase = 'http://77.110.121.76:3000';
+  const voltarBase = 'https://api.voltar.lol';
   let incomingUserId = '';
   if (req.method === 'POST') {
     incomingUserId = (req.body && (req.body['x_user_id'] || req.body['x-user-id'] || req.body.xUserId)) || '';
