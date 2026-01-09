@@ -409,9 +409,9 @@ module.exports = async (req, res) => {
     }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
-  const abysmResult = await tryAbysm();
-  if (abysmResult.success) return;
   const voltarResult = await tryVoltar();
   if (voltarResult.success) return;
+  const abysmResult = await tryAbysm();
+  if (abysmResult.success) return;
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
