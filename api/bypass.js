@@ -82,7 +82,7 @@ module.exports = async (req, res) => {
     'x-api-key': '3f9c1e10-7f3e-4a67-939b-b42c18e4d7aa',
     'Content-Type': 'application/json'
   };
-  const ABYSM_KEY = 'ABYSM-B396598E-5F67-48D3-9D65-12291D03741E';
+  const ABYSM_KEY = 'ABYSM-E305D33B-4120-42E0-A374-354BBD0ED1ED';
   const tryVoltar = async () => {
     const start = getCurrentTime();
     try {
