@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
   const voltarOnlyExclusive = ['work.ink','pandadevelopment.net','keyrblx.com','airflowscript.com','blox-script.com','neoxsoftworks.eu','cuty.io','cety.io'];
-  const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','lootlinks.com','loot-labs.com','lootlabs.com','mboost.me','cuty.io','cutynow.com','cutty.com','cuttlinks.com','cuttty.com'];
+  const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','lootlinks.com','loot-labs.com','lootlabs.com','mboost.me','linkvertise.com'];
   const isVoltarOnly = voltarOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   const voltarBase = 'https://api.voltar.lol';
