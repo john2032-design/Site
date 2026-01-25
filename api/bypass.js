@@ -24,6 +24,12 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-user-id,x-site-token,x-hcaptcha-token,Origin,Referer');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  const VOLTAR_KEY = findEnv(['VOLTAR_KEY','VOLTAR_API_KEY','VOLTAR','VERCEL_VOLTAR_KEY','NEXT_PUBLIC_VOLTAR_KEY']);
+  const ABYSM_KEY = findEnv(['ABYSM_KEY','ABYSM_API_KEY','ABYSM','VERCEL_ABYSM_KEY','NEXT_PUBLIC_ABYSM_KEY']);
+  console.error('DEBUG SITE_SECRET present?', !!SITE_SECRET, 'len=', SITE_SECRET ? SITE_SECRET.length : 0);
+  console.error('DEBUG HCAPTCHA_SECRET present?', !!HCAPTCHA_SECRET, 'len=', HCAPTCHA_SECRET ? HCAPTCHA_SECRET.length : 0);
+  console.error('DEBUG VOLTAR_KEY present?', !!VOLTAR_KEY, 'len=', VOLTAR_KEY ? VOLTAR_KEY.length : 0, 'masked=', VOLTAR_KEY ? VOLTAR_KEY.slice(0,4) + '...' : '');
+  console.error('DEBUG ABYSM_KEY present?', !!ABYSM_KEY, 'len=', ABYSM_KEY ? ABYSM_KEY.length : 0, 'masked=', ABYSM_KEY ? ABYSM_KEY.slice(0,4) + '...' : '');
   if (!SITE_SECRET) {
     return res.status(500).json({ status: 'error', result: 'SITE_SECRET not configured', time_taken: formatDuration(handlerStart) });
   }
@@ -85,15 +91,11 @@ module.exports = async (req, res) => {
   } else {
     incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
   }
-  const VOLTAR_KEY = findEnv(['VOLTAR_KEY','VOLTAR_API_KEY','NEXT_PUBLIC_VOLTAR_KEY','VOLTAR','VOLTAR_API','VERCEL_VOLTAR_KEY']);
-  const ABYSM_KEY = findEnv(['ABYSM_KEY','ABYSM_API_KEY','NEXT_PUBLIC_ABYSM_KEY','ABYSM','ABYSM_API','VERCEL_ABYSM_KEY']);
-  if (origin === ALLOWED_ORIGIN) {
-    if (isVoltarOnly && !VOLTAR_KEY) {
-      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
-    }
-    if (isAbysmOnly && !ABYSM_KEY) {
-      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
-    }
+  if (isVoltarOnly && !VOLTAR_KEY) {
+    return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
+  }
+  if (isAbysmOnly && !ABYSM_KEY) {
+    return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
   }
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
