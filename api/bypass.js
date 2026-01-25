@@ -7,6 +7,13 @@ const formatDuration = (startNs, endNs = process.hrtime.bigint()) => {
 const ALLOWED_ORIGIN = 'https://vortix-world-bypass.vercel.app';
 const SITE_SECRET = process.env.SITE_SECRET || '';
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
+const findEnv = (names) => {
+  for (let i = 0; i < names.length; i++) {
+    const v = process.env[names[i]];
+    if (v && String(v).trim().length > 0) return String(v).trim();
+  }
+  return '';
+};
 module.exports = async (req, res) => {
   const handlerStart = getCurrentTime();
   const origin = (req.headers.origin || '').toString();
@@ -78,13 +85,15 @@ module.exports = async (req, res) => {
   } else {
     incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
   }
-  const VOLTAR_KEY = process.env.VOLTAR_KEY || process.env.VOLTAR_API_KEY || '';
-  const ABYSM_KEY = process.env.ABYSM_KEY || process.env.ABYSM_API_KEY || '';
-  if (isVoltarOnly && !VOLTAR_KEY) {
-    return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', time_taken: formatDuration(handlerStart) });
-  }
-  if (isAbysmOnly && !ABYSM_KEY) {
-    return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', time_taken: formatDuration(handlerStart) });
+  const VOLTAR_KEY = findEnv(['VOLTAR_KEY','VOLTAR_API_KEY','NEXT_PUBLIC_VOLTAR_KEY','VOLTAR','VOLTAR_API','VERCEL_VOLTAR_KEY']);
+  const ABYSM_KEY = findEnv(['ABYSM_KEY','ABYSM_API_KEY','NEXT_PUBLIC_ABYSM_KEY','ABYSM','ABYSM_API','VERCEL_ABYSM_KEY']);
+  if (origin === ALLOWED_ORIGIN) {
+    if (isVoltarOnly && !VOLTAR_KEY) {
+      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
+    }
+    if (isAbysmOnly && !ABYSM_KEY) {
+      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
+    }
   }
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
@@ -178,7 +187,7 @@ module.exports = async (req, res) => {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
     if (abysmResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
@@ -186,7 +195,7 @@ module.exports = async (req, res) => {
     const voltarResult = await tryVoltar();
     if (voltarResult.success) return;
     if (voltarResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
     if (voltarResult.auth_error) {
       return res.status(502).json({ status: 'error', result: 'Voltar authentication failed', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
@@ -197,13 +206,13 @@ module.exports = async (req, res) => {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
     if (abysmResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
     if (abysmResult.fail) {
       const voltarResult = await tryVoltar();
       if (voltarResult.success) return;
       if (voltarResult.missing_key) {
-        return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+        return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
       }
       return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
@@ -214,7 +223,7 @@ module.exports = async (req, res) => {
   const abysmResult = await tryAbysm();
   if (abysmResult.success) return;
   if (voltarResult.missing_key || abysmResult.missing_key) {
-    return res.status(500).json({ status: 'error', result: 'Required API key not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    return res.status(500).json({ status: 'error', result: 'Required API key not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
