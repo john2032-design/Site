@@ -77,12 +77,13 @@ module.exports = async (req, res) => {
   } else {
     incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
   }
+  const VOLTAR_KEY = process.env.VOLTAR_KEY || process.env.VOLTAR_API_KEY || '';
+  const ABYSM_KEY = process.env.ABYSM_KEY || process.env.ABYSM_API_KEY || '';
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
-    'x-api-key': '3f9c1e10-7f3e-4a67-939b-b42c18e4d7aa',
+    'x-api-key': VOLTAR_KEY,
     'Content-Type': 'application/json'
   };
-  const ABYSM_KEY = 'ABYSM-E305D33B-4120-42E0-A374-354BBD0ED1ED';
   const tryVoltar = async () => {
     const start = getCurrentTime();
     try {
