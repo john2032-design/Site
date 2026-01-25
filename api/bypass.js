@@ -7,13 +7,6 @@ const formatDuration = (startNs, endNs = process.hrtime.bigint()) => {
 const ALLOWED_ORIGIN = 'https://vortix-world-bypass.vercel.app';
 const SITE_SECRET = process.env.SITE_SECRET || '';
 const HCAPTCHA_SECRET = process.env.HCAPTCHA_SECRET || '';
-const findEnv = (names) => {
-  for (let i = 0; i < names.length; i++) {
-    const v = process.env[names[i]];
-    if (v && String(v).trim().length > 0) return String(v).trim();
-  }
-  return '';
-};
 module.exports = async (req, res) => {
   const handlerStart = getCurrentTime();
   const origin = (req.headers.origin || '').toString();
@@ -24,12 +17,6 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-user-id,x-site-token,x-hcaptcha-token,Origin,Referer');
   if (req.method === 'OPTIONS') return res.status(200).end();
-  const VOLTAR_KEY = findEnv(['VOLTAR_KEY','VOLTAR_API_KEY','VOLTAR','VERCEL_VOLTAR_KEY','NEXT_PUBLIC_VOLTAR_KEY']);
-  const ABYSM_KEY = findEnv(['ABYSM_KEY','ABYSM_API_KEY','ABYSM','VERCEL_ABYSM_KEY','NEXT_PUBLIC_ABYSM_KEY']);
-  console.error('DEBUG SITE_SECRET present?', !!SITE_SECRET, 'len=', SITE_SECRET ? SITE_SECRET.length : 0);
-  console.error('DEBUG HCAPTCHA_SECRET present?', !!HCAPTCHA_SECRET, 'len=', HCAPTCHA_SECRET ? HCAPTCHA_SECRET.length : 0);
-  console.error('DEBUG VOLTAR_KEY present?', !!VOLTAR_KEY, 'len=', VOLTAR_KEY ? VOLTAR_KEY.length : 0, 'masked=', VOLTAR_KEY ? VOLTAR_KEY.slice(0,4) + '...' : '');
-  console.error('DEBUG ABYSM_KEY present?', !!ABYSM_KEY, 'len=', ABYSM_KEY ? ABYSM_KEY.length : 0, 'masked=', ABYSM_KEY ? ABYSM_KEY.slice(0,4) + '...' : '');
   if (!SITE_SECRET) {
     return res.status(500).json({ status: 'error', result: 'SITE_SECRET not configured', time_taken: formatDuration(handlerStart) });
   }
@@ -67,7 +54,6 @@ module.exports = async (req, res) => {
       return res.status(403).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
     }
   } catch (e) {
-    console.error('hcaptcha verify error', e?.message || e, e?.response?.data || '');
     return res.status(502).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
   }
   let hostname = '';
@@ -91,30 +77,19 @@ module.exports = async (req, res) => {
   } else {
     incomingUserId = (req.headers && (req.headers['x-user-id'] || req.headers['x_user_id'] || req.headers['x-userid'])) || '';
   }
-  if (isVoltarOnly && !VOLTAR_KEY) {
-    return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
-  }
-  if (isAbysmOnly && !ABYSM_KEY) {
-    return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', time_taken: formatDuration(handlerStart) });
-  }
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
-    'x-api-key': VOLTAR_KEY,
+    'x-api-key': '3f9c1e10-7f3e-4a67-939b-b42c18e4d7aa',
     'Content-Type': 'application/json'
   };
+  const ABYSM_KEY = '';
   const tryVoltar = async () => {
     const start = getCurrentTime();
-    if (!VOLTAR_KEY) {
-      return { success: false, missing_key: true };
-    }
     try {
       const createPayload = { url, cache: true };
       if (incomingUserId) createPayload.x_user_id = incomingUserId;
       const createRes = await axios.post(`${voltarBase}/bypass/createTask`, createPayload, { headers: voltarHeaders, timeout: 0 });
-      if (createRes.data.status !== 'success' || !createRes.data.taskId) {
-        console.error('voltar createTask unexpected response', createRes.data || '');
-        return { success: false, unsupported: true };
-      }
+      if (createRes.data.status !== 'success' || !createRes.data.taskId) return { success: false, unsupported: true };
       const taskId = createRes.data.taskId;
       while (true) {
         await new Promise(r => setTimeout(r, 500));
@@ -130,26 +105,17 @@ module.exports = async (req, res) => {
             res.json({ status: 'success', result: resultRes.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
             return { success: true };
           }
-        } catch (err) {
-          console.error('voltar poll error', err?.message || err, err?.response?.data || '');
-        }
+        } catch {}
       }
     } catch (e) {
-      console.error('voltar createTask error', e?.message || e, e?.response?.data || '');
       if (e.response?.data?.message && /unsupported|invalid|not supported/i.test(e.response.data.message)) {
         return { success: false, unsupported: true };
-      }
-      if (e.response?.status === 401 || e.response?.status === 403) {
-        return { success: false, auth_error: true };
       }
       return { success: false };
     }
   };
   const tryAbysm = async () => {
     const start = getCurrentTime();
-    if (!ABYSM_KEY) {
-      return { success: false, missing_key: true };
-    }
     try {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
       const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' }, timeout: 0 });
@@ -160,26 +126,20 @@ module.exports = async (req, res) => {
         return { success: true };
       }
       if (d.status === 'fail') {
-        console.error('abysm fail response', d || '');
         return { success: false, fail: true };
       }
       const msg = d?.message || d?.error || d?.result || '';
       if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
-      console.error('abysm unexpected response', d || '');
       return { success: false };
     } catch (e) {
-      console.error('abysm request error', e?.message || e, e?.response?.data || '');
       if (e.response?.data) {
         const dd = e.response.data;
         if (dd?.status === 'fail') return { success: false, fail: true };
         const msg = dd?.message || dd?.error || dd?.result || '';
         if (/unsupported|not supported|missing_url/i.test(String(msg))) {
           return { success: false, unsupported: true };
-        }
-        if (e.response?.status === 401 || e.response?.status === 403) {
-          return { success: false, auth_error: true };
         }
       }
       return { success: false };
@@ -188,34 +148,19 @@ module.exports = async (req, res) => {
   if (isAbysmOnly) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
-    if (abysmResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-    }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (isVoltarOnly) {
     const voltarResult = await tryVoltar();
     if (voltarResult.success) return;
-    if (voltarResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-    }
-    if (voltarResult.auth_error) {
-      return res.status(502).json({ status: 'error', result: 'Voltar authentication failed', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-    }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (hostname === 'auth.platorelay.com' || hostname.endsWith('.auth.platorelay.com')) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
-    if (abysmResult.missing_key) {
-      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-    }
     if (abysmResult.fail) {
       const voltarResult = await tryVoltar();
       if (voltarResult.success) return;
-      if (voltarResult.missing_key) {
-        return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-      }
       return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
@@ -224,8 +169,5 @@ module.exports = async (req, res) => {
   if (voltarResult.success) return;
   const abysmResult = await tryAbysm();
   if (abysmResult.success) return;
-  if (voltarResult.missing_key || abysmResult.missing_key) {
-    return res.status(500).json({ status: 'error', result: 'Required API key not configured in environment', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-  }
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
