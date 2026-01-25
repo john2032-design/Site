@@ -54,6 +54,7 @@ module.exports = async (req, res) => {
       return res.status(403).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
     }
   } catch (e) {
+    console.error('hcaptcha verify error', e?.message || e, e?.response?.data || '');
     return res.status(502).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
   }
   let hostname = '';
@@ -79,6 +80,12 @@ module.exports = async (req, res) => {
   }
   const VOLTAR_KEY = process.env.VOLTAR_KEY || process.env.VOLTAR_API_KEY || '';
   const ABYSM_KEY = process.env.ABYSM_KEY || process.env.ABYSM_API_KEY || '';
+  if (isVoltarOnly && !VOLTAR_KEY) {
+    return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', time_taken: formatDuration(handlerStart) });
+  }
+  if (isAbysmOnly && !ABYSM_KEY) {
+    return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', time_taken: formatDuration(handlerStart) });
+  }
   const voltarHeaders = {
     'x-user-id': incomingUserId || '',
     'x-api-key': VOLTAR_KEY,
@@ -86,11 +93,17 @@ module.exports = async (req, res) => {
   };
   const tryVoltar = async () => {
     const start = getCurrentTime();
+    if (!VOLTAR_KEY) {
+      return { success: false, missing_key: true };
+    }
     try {
       const createPayload = { url, cache: true };
       if (incomingUserId) createPayload.x_user_id = incomingUserId;
       const createRes = await axios.post(`${voltarBase}/bypass/createTask`, createPayload, { headers: voltarHeaders, timeout: 0 });
-      if (createRes.data.status !== 'success' || !createRes.data.taskId) return { success: false, unsupported: true };
+      if (createRes.data.status !== 'success' || !createRes.data.taskId) {
+        console.error('voltar createTask unexpected response', createRes.data || '');
+        return { success: false, unsupported: true };
+      }
       const taskId = createRes.data.taskId;
       while (true) {
         await new Promise(r => setTimeout(r, 500));
@@ -106,17 +119,26 @@ module.exports = async (req, res) => {
             res.json({ status: 'success', result: resultRes.data.result, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
             return { success: true };
           }
-        } catch {}
+        } catch (err) {
+          console.error('voltar poll error', err?.message || err, err?.response?.data || '');
+        }
       }
     } catch (e) {
+      console.error('voltar createTask error', e?.message || e, e?.response?.data || '');
       if (e.response?.data?.message && /unsupported|invalid|not supported/i.test(e.response.data.message)) {
         return { success: false, unsupported: true };
+      }
+      if (e.response?.status === 401 || e.response?.status === 403) {
+        return { success: false, auth_error: true };
       }
       return { success: false };
     }
   };
   const tryAbysm = async () => {
     const start = getCurrentTime();
+    if (!ABYSM_KEY) {
+      return { success: false, missing_key: true };
+    }
     try {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
       const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' }, timeout: 0 });
@@ -127,20 +149,26 @@ module.exports = async (req, res) => {
         return { success: true };
       }
       if (d.status === 'fail') {
+        console.error('abysm fail response', d || '');
         return { success: false, fail: true };
       }
       const msg = d?.message || d?.error || d?.result || '';
       if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
+      console.error('abysm unexpected response', d || '');
       return { success: false };
     } catch (e) {
+      console.error('abysm request error', e?.message || e, e?.response?.data || '');
       if (e.response?.data) {
         const dd = e.response.data;
         if (dd?.status === 'fail') return { success: false, fail: true };
         const msg = dd?.message || dd?.error || dd?.result || '';
         if (/unsupported|not supported|missing_url/i.test(String(msg))) {
           return { success: false, unsupported: true };
+        }
+        if (e.response?.status === 401 || e.response?.status === 403) {
+          return { success: false, auth_error: true };
         }
       }
       return { success: false };
@@ -149,19 +177,34 @@ module.exports = async (req, res) => {
   if (isAbysmOnly) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
+    if (abysmResult.missing_key) {
+      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (isVoltarOnly) {
     const voltarResult = await tryVoltar();
     if (voltarResult.success) return;
+    if (voltarResult.missing_key) {
+      return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    }
+    if (voltarResult.auth_error) {
+      return res.status(502).json({ status: 'error', result: 'Voltar authentication failed', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (hostname === 'auth.platorelay.com' || hostname.endsWith('.auth.platorelay.com')) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
+    if (abysmResult.missing_key) {
+      return res.status(500).json({ status: 'error', result: 'ABYSM_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+    }
     if (abysmResult.fail) {
       const voltarResult = await tryVoltar();
       if (voltarResult.success) return;
+      if (voltarResult.missing_key) {
+        return res.status(500).json({ status: 'error', result: 'VOLTAR_KEY not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+      }
       return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
     }
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
@@ -170,5 +213,8 @@ module.exports = async (req, res) => {
   if (voltarResult.success) return;
   const abysmResult = await tryAbysm();
   if (abysmResult.success) return;
+  if (voltarResult.missing_key || abysmResult.missing_key) {
+    return res.status(500).json({ status: 'error', result: 'Required API key not configured', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  }
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
