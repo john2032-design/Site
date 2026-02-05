@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
     if (!v.success) {
       return res.status(403).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
     }
-  } catch (e) {
+  } catch {
     return res.status(502).json({ status: 'error', result: 'hCaptcha verification failed', time_taken: formatDuration(handlerStart) });
   }
   let hostname = '';
@@ -72,6 +72,7 @@ module.exports = async (req, res) => {
   const isLinkvertise = hostname === linkvertiseHost || hostname.endsWith('.' + linkvertiseHost);
   const isCuty = hostname === cutyHost || hostname.endsWith('.' + cutyHost);
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
+  const isWorkInk = hostname === 'work.ink' || hostname.endsWith('.work.ink') || hostname === 'workink.net' || hostname.endsWith('.workink.net');
   let incomingUserId = '';
   if (req.method === 'POST') {
     incomingUserId = (req.body && (req.body['x_user_id'] || req.body['x-user-id'] || req.body.xUserId)) || '';
@@ -84,7 +85,7 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const rtaoUrl = `https://rtao.lol/free/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(rtaoUrl, { headers: { 'accept': 'application/json' }, timeout: 0 });
+      const r = await axios.get(rtaoUrl, { headers: { accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
       if (d.status === 'success') {
         let link = '';
@@ -121,7 +122,7 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const trwUrl = `https://trw.lat/api/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(trwUrl, { headers: { 'x-api-key': TRW_KEY, 'accept': 'application/json' }, timeout: 0 });
+      const r = await axios.get(trwUrl, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
       if (d.status === 'success') {
         let link = '';
@@ -158,7 +159,7 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, 'accept': 'application/json' }, timeout: 0 });
+      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
       if (d.status === 'success') {
         const link = d.data && typeof d.data === 'object' && typeof d.data.result === 'string' ? d.data.result : '';
@@ -188,6 +189,11 @@ module.exports = async (req, res) => {
   if (isAbysmOnly) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  }
+  if (isWorkInk) {
+    const trwResult = await tryTrw();
+    if (trwResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (isLinkvertise) {
