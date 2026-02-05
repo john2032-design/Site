@@ -66,9 +66,11 @@ module.exports = async (req, res) => {
   if (!hostname) {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
-  const trwOnlyExclusive = ['linkvertise.com', 'cuty.io'];
+  const linkvertiseHost = 'linkvertise.com';
+  const cutyHost = 'cuty.io';
   const abysmOnlyExclusive = ['loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','lootlinks.com','loot-labs.com','lootlabs.com','mboost.me',''];
-  const isTrwOnly = trwOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
+  const isLinkvertise = hostname === linkvertiseHost || hostname.endsWith('.' + linkvertiseHost);
+  const isCuty = hostname === cutyHost || hostname.endsWith('.' + cutyHost);
   const isAbysmOnly = abysmOnlyExclusive.some(d => hostname === d || hostname.endsWith('.' + d));
   let incomingUserId = '';
   if (req.method === 'POST') {
@@ -78,6 +80,43 @@ module.exports = async (req, res) => {
   }
   const ABYSM_KEY = 'ABYSM-185EF369-E519-4670-969E-137F07BB52B8';
   const TRW_KEY = 'TRW_FREE-GAY-15a92945-9b04-4c75-8337-f2a6007281e9';
+  const tryRtao = async () => {
+    const start = getCurrentTime();
+    try {
+      const rtaoUrl = `https://rtao.lol/free/bypass?url=${encodeURIComponent(url)}`;
+      const r = await axios.get(rtaoUrl, { headers: { 'accept': 'application/json' }, timeout: 0 });
+      const d = r.data || {};
+      if (d.status === 'success') {
+        let link = '';
+        if (typeof d.result === 'string') link = d.result;
+        else if (d.data && typeof d.data === 'object' && typeof d.data.result === 'string') link = d.data.result;
+        else if (typeof d.url === 'string') link = d.url;
+        if (link) {
+          res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+          return { success: true };
+        }
+        return { success: false };
+      }
+      if (d.status === 'fail') {
+        return { success: false, fail: true };
+      }
+      const msg = d?.message || d?.error || d?.result || '';
+      if (/unsupported|not supported|missing_url/i.test(String(msg))) {
+        return { success: false, unsupported: true };
+      }
+      return { success: false };
+    } catch (e) {
+      if (e.response?.data) {
+        const dd = e.response.data;
+        if (dd?.status === 'fail') return { success: false, fail: true };
+        const msg = dd?.message || dd?.error || dd?.result || '';
+        if (/unsupported|not supported|missing_url/i.test(String(msg))) {
+          return { success: false, unsupported: true };
+        }
+      }
+      return { success: false };
+    }
+  };
   const tryTrw = async () => {
     const start = getCurrentTime();
     try {
@@ -151,9 +190,20 @@ module.exports = async (req, res) => {
     if (abysmResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
-  if (isTrwOnly) {
+  if (isLinkvertise) {
+    const rtaoResult = await tryRtao();
+    if (rtaoResult.success) return;
     const trwResult = await tryTrw();
     if (trwResult.success) return;
+    const abysmResult = await tryAbysm();
+    if (abysmResult.success) return;
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  }
+  if (isCuty) {
+    const trwResult = await tryTrw();
+    if (trwResult.success) return;
+    const abysmResult = await tryAbysm();
+    if (abysmResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (hostname === 'auth.platorelay.com' || hostname.endsWith('.auth.platorelay.com')) {
