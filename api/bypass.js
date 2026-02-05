@@ -84,7 +84,7 @@ module.exports = async (req, res) => {
   const tryRtao = async () => {
     const start = getCurrentTime();
     try {
-      const rtaoUrl = `https://rtao.lol/free/bypass?url=${encodeURIComponent(url)}`;
+      const rtaoUrl = `https://rtao.lol/free/v2/bypass?url=${encodeURIComponent(url)}`;
       const r = await axios.get(rtaoUrl, { headers: { accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
       if (d.status === 'success') {
