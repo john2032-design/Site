@@ -81,11 +81,18 @@ module.exports = async (req, res) => {
   }
   const ABYSM_KEY = 'ABYSM-185EF369-E519-4670-969E-137F07BB52B8';
   const TRW_KEY = 'TRW_FREE-GAY-15a92945-9b04-4c75-8337-f2a6007281e9';
+  const RTAO_KEY = 'RTaO_BtBKnXmuZPB0msCHlXyxS09ItC1yARpq';
   const tryRtao = async () => {
     const start = getCurrentTime();
     try {
       const rtaoUrl = `https://rtao.lol/free/v2/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(rtaoUrl, { headers: { accept: 'application/json' }, timeout: 0 });
+      const r = await axios.get(rtaoUrl, { 
+        headers: { 
+          'x-api-key': RTAO_KEY,
+          accept: 'application/json' 
+        }, 
+        timeout: 0 
+      });
       const d = r.data || {};
       if (d.status === 'success') {
         let link = '';
