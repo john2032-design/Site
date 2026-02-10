@@ -86,13 +86,7 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const rtaoUrl = `https://rtao.lol/free/v2/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(rtaoUrl, { 
-        headers: { 
-          'x-api-key': RTAO_KEY,
-          accept: 'application/json' 
-        }, 
-        timeout: 0 
-      });
+      const r = await axios.get(rtaoUrl, { headers: { 'x-api-key': RTAO_KEY, accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
       if (d.status === 'success') {
         let link = '';
@@ -213,8 +207,8 @@ module.exports = async (req, res) => {
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   if (isCuty) {
-    const trwResult = await tryTrw();
-    if (trwResult.success) return;
+    const rtaoResult = await tryRtao();
+    if (rtaoResult.success) return;
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
