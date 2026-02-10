@@ -89,48 +89,33 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const base = 'https://trw.lat/api/bypass';
-      const r1 = await axios.get(base, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json', 'x-url': url }, timeout: 15000 });
-      const d1 = r1.data || {};
-      if (d1 && (d1.success === true || d1.success === 'true' || d1.success === 1 || d1.success === '1')) {
-        const link = typeof d1.result === 'string' ? d1.result : (d1.data && typeof d1.data.result === 'string' ? d1.data.result : (typeof d1.url === 'string' ? d1.url : ''));
+      const r = await axios.get(base, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, params: { url }, timeout: 90000 });
+      const d = r.data || {};
+      if (d && (d.success === true || d.success === 'true' || d.success === 1 || d.success === '1')) {
+        const link = typeof d.result === 'string' ? d.result : (d.data && typeof d.data.result === 'string' ? d.data.result : (typeof d.url === 'string' ? d.url : ''));
         if (link) {
           res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
           return { success: true };
         }
         return { success: false };
       }
-      const alt1 = typeof d1.result === 'string' ? d1.result : (typeof d1.data === 'string' ? d1.data : '');
-      if (alt1) {
-        res.json({ status: 'success', result: alt1, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+      const alt = typeof d.result === 'string' ? d.result : (typeof d.data === 'string' ? d.data : '');
+      if (alt && /https?:\/\/.+/.test(alt)) {
+        res.json({ status: 'success', result: alt, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
-      const r2 = await axios.get(base, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, params: { url }, timeout: 15000 });
-      const d2 = r2.data || {};
-      if (d2 && (d2.success === true || d2.success === 'true' || d2.success === 1 || d2.success === '1')) {
-        const link = typeof d2.result === 'string' ? d2.result : (d2.data && typeof d2.data.result === 'string' ? d2.data.result : (typeof d2.url === 'string' ? d2.url : ''));
-        if (link) {
-          res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-          return { success: true };
-        }
-        return { success: false };
-      }
-      const alt2 = typeof d2.result === 'string' ? d2.result : (typeof d2.data === 'string' ? d2.data : '');
-      if (alt2) {
-        res.json({ status: 'success', result: alt2, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
-        return { success: true };
-      }
-      const msg = d2?.message || d2?.error || d2?.result || d1?.message || d1?.error || d1?.result || '';
-      if (/unsupported|not supported|missing_url/i.test(String(msg))) {
+      if (d && (d.success === false || d.success === 'false')) return { success: false, fail: true };
+      const msg = d?.result || d?.message || d?.error || '';
+      if (/invalid url|invalid URL|unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
-      if ((d1 && (d1.success === false || d1.success === 'false')) || (d2 && (d2.success === false || d2.success === 'false'))) return { success: false, fail: true };
       return { success: false };
     } catch (e) {
       if (e.response?.data) {
         const dd = e.response.data;
-        if (dd?.success === false || dd?.status === 'fail') return { success: false, fail: true };
-        const msg = dd?.message || dd?.error || dd?.result || '';
-        if (/unsupported|not supported|missing_url/i.test(String(msg))) {
+        if (dd?.success === false) return { success: false, fail: true };
+        const msg = dd?.result || dd?.message || dd?.error || '';
+        if (/invalid url|invalid URL|unsupported|not supported|missing_url/i.test(String(msg))) {
           return { success: false, unsupported: true };
         }
       }
@@ -179,6 +164,11 @@ module.exports = async (req, res) => {
   if (shouldUseAbysm) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  }
+  if (trwOnlyList.some(h => matchHost(h))) {
+    const trwResult = await tryTrw();
+    if (trwResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
   const abysmResult = await tryAbysm();
