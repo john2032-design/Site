@@ -70,15 +70,11 @@ module.exports = async (req, res) => {
   if (!hostname) {
     return res.status(400).json({ status: 'error', result: 'Invalid URL', time_taken: formatDuration(handlerStart) });
   }
-  const linkvertiseHost = 'linkvertise.com';
-  const cutyHost = 'cuty.io';
-  const workInkHosts = ['work.ink','workink.net'];
-  const abysmHostList = ['socialwolvez.com','scwz.me','adfoc.us','unlocknow.net','sub2get.com','sub4unlock.com','sub2unlock.net','sub2unlock.com','mboost.me','paste-drop.com','pastebin.com','mobile.codex.lol','lockr.so','rentry.co','deltaios-executor.com','krnl-ios.com','auth.platorelay.com','auth.platoboost.me','auth.platoboost.app','auth.platoboost.net','auth.platoboost.click','rekonise.com','rkns.link','rekonise.org','loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','best-links.org','lootlinks.com','loot-labs.com','lootlabs.com','boost.ink','booo.st','bst.gg','bst.wtf','linkunlocker.com','unlk.link','link-unlock.com','krnl.cat'];
+  const trwOnlyList = ['linkvertise.com','cuty.io','work.ink','workink.net'];
+  const abysmOnlyList = ['socialwolvez.com','scwz.me','adfoc.us','unlocknow.net','sub2get.com','sub4unlock.com','sub2unlock.net','sub2unlock.com','mboost.me','paste-drop.com','pastebin.com','mobile.codex.lol','lockr.so','rentry.co','deltaios-executor.com','krnl-ios.com','auth.platorelay.com','auth.platoboost.me','auth.platoboost.app','auth.platoboost.net','auth.platoboost.click','rekonise.com','rkns.link','rekonise.org','loot-link.com','lootlink.org','lootlinks.co','lootdest.info','lootdest.org','lootdest.com','links-loot.com','loot-links.com','best-links.org','lootlinks.com','loot-labs.com','lootlabs.com','boost.ink','booo.st','bst.gg','bst.wtf','linkunlocker.com','unlk.link','link-unlock.com','krnl.cat'];
   const matchHost = (host) => hostname === host || hostname.endsWith('.' + host);
-  const isLinkvertise = matchHost(linkvertiseHost);
-  const isCuty = matchHost(cutyHost);
-  const isWorkInk = workInkHosts.some(h => matchHost(h));
-  const isAbysmOnly = abysmHostList.some(h => matchHost(h)) && (hostname !== linkvertiseHost && !hostname.endsWith('.' + linkvertiseHost) && hostname !== cutyHost && !hostname.endsWith('.' + cutyHost) && !workInkHosts.some(h => matchHost(h)));
+  const isTrwOnly = trwOnlyList.some(h => matchHost(h));
+  const isAbysmOnly = abysmOnlyList.some(h => matchHost(h));
   const requiresPathForAbysm = (hostname === 'deltaios-executor.com' && pathname.includes('/ads.html?URL=')) || (hostname === 'krnl-ios.com' && pathname.includes('/ads.html?URL=')) || (hostname === 'paste-drop.com' && pathname.startsWith('/paste/')) || (hostname === 'mobile.codex.lol' && (pathname === '/' || pathname.startsWith('/?')));
   const shouldUseAbysm = isAbysmOnly || requiresPathForAbysm;
   let incomingUserId = '';
@@ -95,24 +91,29 @@ module.exports = async (req, res) => {
       const trwUrl = `https://trw.lat/api/bypass?url=${encodeURIComponent(url)}`;
       const r = await axios.get(trwUrl, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, timeout: 0 });
       const d = r.data || {};
-      if (d && (d.success === true || d.success === 'true')) {
-        const link = typeof d.result === 'string' ? d.result : (d.data && typeof d.data === 'string' ? d.data : (typeof d.url === 'string' ? d.url : ''));
+      if (d && (d.success === true || d.success === 'true' || d.success === 1 || d.success === '1')) {
+        const link = typeof d.result === 'string' ? d.result : (d.data && typeof d.data.result === 'string' ? d.data.result : (typeof d.url === 'string' ? d.url : ''));
         if (link) {
           res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
           return { success: true };
         }
         return { success: false };
       }
+      const altResult = typeof d.result === 'string' ? d.result : (typeof d.data === 'string' ? d.data : '');
+      if (altResult) {
+        res.json({ status: 'success', result: altResult, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+        return { success: true };
+      }
       const msg = d?.message || d?.error || d?.result || '';
       if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
-      if (d && d.success === false) return { success: false, fail: true };
+      if (d && (d.success === false || d.success === 'false')) return { success: false, fail: true };
       return { success: false };
     } catch (e) {
       if (e.response?.data) {
         const dd = e.response.data;
-        if (dd?.success === false) return { success: false, fail: true };
+        if (dd?.success === false || dd?.status === 'fail') return { success: false, fail: true };
         const msg = dd?.message || dd?.error || dd?.result || '';
         if (/unsupported|not supported|missing_url/i.test(String(msg))) {
           return { success: false, unsupported: true };
@@ -155,20 +156,17 @@ module.exports = async (req, res) => {
       return { success: false };
     }
   };
+  if (isTrwOnly) {
+    const trwResult = await tryTrw();
+    if (trwResult.success) return;
+    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
+  }
   if (shouldUseAbysm) {
     const abysmResult = await tryAbysm();
     if (abysmResult.success) return;
     return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
   }
-  if (isLinkvertise || isCuty || isWorkInk) {
-    const trwResult = await tryTrw();
-    if (trwResult.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-  }
-  if (hostname === 'auth.platorelay.com' || hostname.endsWith('.auth.platorelay.com')) {
-    const abysmResult = await tryAbysm();
-    if (abysmResult.success) return;
-    return res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
-  }
+  const abysmResult = await tryAbysm();
+  if (abysmResult.success) return;
   res.json({ status: 'error', result: 'Bypass Failed :(', x_user_id: incomingUserId || '', time_taken: formatDuration(handlerStart) });
 };
