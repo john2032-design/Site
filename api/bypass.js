@@ -88,27 +88,42 @@ module.exports = async (req, res) => {
   const tryTrw = async () => {
     const start = getCurrentTime();
     try {
-      const trwUrl = `https://trw.lat/api/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(trwUrl, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, timeout: 0 });
-      const d = r.data || {};
-      if (d && (d.success === true || d.success === 'true' || d.success === 1 || d.success === '1')) {
-        const link = typeof d.result === 'string' ? d.result : (d.data && typeof d.data.result === 'string' ? d.data.result : (typeof d.url === 'string' ? d.url : ''));
+      const base = 'https://trw.lat/api/bypass';
+      const r1 = await axios.get(base, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json', 'x-url': url }, timeout: 15000 });
+      const d1 = r1.data || {};
+      if (d1 && (d1.success === true || d1.success === 'true' || d1.success === 1 || d1.success === '1')) {
+        const link = typeof d1.result === 'string' ? d1.result : (d1.data && typeof d1.data.result === 'string' ? d1.data.result : (typeof d1.url === 'string' ? d1.url : ''));
         if (link) {
           res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
           return { success: true };
         }
         return { success: false };
       }
-      const altResult = typeof d.result === 'string' ? d.result : (typeof d.data === 'string' ? d.data : '');
-      if (altResult) {
-        res.json({ status: 'success', result: altResult, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+      const alt1 = typeof d1.result === 'string' ? d1.result : (typeof d1.data === 'string' ? d1.data : '');
+      if (alt1) {
+        res.json({ status: 'success', result: alt1, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
         return { success: true };
       }
-      const msg = d?.message || d?.error || d?.result || '';
+      const r2 = await axios.get(base, { headers: { 'x-api-key': TRW_KEY, accept: 'application/json' }, params: { url }, timeout: 15000 });
+      const d2 = r2.data || {};
+      if (d2 && (d2.success === true || d2.success === 'true' || d2.success === 1 || d2.success === '1')) {
+        const link = typeof d2.result === 'string' ? d2.result : (d2.data && typeof d2.data.result === 'string' ? d2.data.result : (typeof d2.url === 'string' ? d2.url : ''));
+        if (link) {
+          res.json({ status: 'success', result: link, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+          return { success: true };
+        }
+        return { success: false };
+      }
+      const alt2 = typeof d2.result === 'string' ? d2.result : (typeof d2.data === 'string' ? d2.data : '');
+      if (alt2) {
+        res.json({ status: 'success', result: alt2, x_user_id: incomingUserId || '', time_taken: formatDuration(start) });
+        return { success: true };
+      }
+      const msg = d2?.message || d2?.error || d2?.result || d1?.message || d1?.error || d1?.result || '';
       if (/unsupported|not supported|missing_url/i.test(String(msg))) {
         return { success: false, unsupported: true };
       }
-      if (d && (d.success === false || d.success === 'false')) return { success: false, fail: true };
+      if ((d1 && (d1.success === false || d1.success === 'false')) || (d2 && (d2.success === false || d2.success === 'false'))) return { success: false, fail: true };
       return { success: false };
     } catch (e) {
       if (e.response?.data) {
@@ -126,7 +141,7 @@ module.exports = async (req, res) => {
     const start = getCurrentTime();
     try {
       const abysmUrl = `https://api.abysm.lat/v2/bypass?url=${encodeURIComponent(url)}`;
-      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, accept: 'application/json' }, timeout: 0 });
+      const r = await axios.get(abysmUrl, { headers: { 'x-api-key': ABYSM_KEY, accept: 'application/json' }, timeout: 15000 });
       const d = r.data || {};
       if (d.status === 'success') {
         const link = d.data && typeof d.data === 'object' && typeof d.data.result === 'string' ? d.data.result : (typeof d.result === 'string' ? d.result : '');
